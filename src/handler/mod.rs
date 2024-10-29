@@ -3,6 +3,7 @@ use thiserror::Error;
 use webauthn_rs::prelude::WebauthnError;
 
 pub(crate) mod auth;
+pub mod poll;
 
 /**
 Type alias for Errors that implement [actix_web::ResponseError] through [Error]

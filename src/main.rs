@@ -4,16 +4,22 @@ use actix_web::{
     web::{Data, JsonConfig},
     {get, App, HttpRequest, HttpResponse, HttpServer, Responder},
 };
+use db::init;
+use dotenv::dotenv;
 use startup::startup;
-
+use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
+mod db;
 mod handler;
 mod models;
 mod startup;
-use crate::handler::auth::{
-    finish_authentication, finish_register, start_authentication, start_register,
+use crate::db::{config::DbConfig, poll_crud::PollRepository};
+use crate::handler::{
+    auth::{finish_authentication, finish_register, start_authentication, start_register},
+    poll::{add_polls, delete_poll, fetch_polls, update_poll},
 };
-use crate::models::{AuthenticationState, RegistrationState};
+use crate::models::{auth_state::AuthenticationState, reg_state::RegistrationState};
 use actix_cors::Cors; // Import the CORS middlewar
 
 #[get("/")]
@@ -38,16 +44,27 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize env-logger
     env_logger::init();
-
+    dotenv().ok();
     // Generate secret key for cookies.
     // Normally you would read this from a configuration file.
 
     let (webauthn, webauthn_users) = startup();
     let reg_state_storage = Data::new(RegistrationState::new());
     let auth_state_storeage = Data::new(AuthenticationState::new());
+    let config = DbConfig::new(
+        "mongodb",
+        env::var("DATABASE_URI")
+            .unwrap_or_else(|_| "mongodb://localhost:27017/?directConnection=true".to_string()),
+        "rustest",
+    );
+
+    let poll_repo = init(config).await;
+    let store_arc: Arc<dyn PollRepository> = Arc::new(poll_repo);
+    let store_data: Data<dyn PollRepository> = Data::from(store_arc);
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            .app_data(store_data.clone())
             .app_data(reg_state_storage.clone())
             .app_data(auth_state_storeage.clone())
             .app_data(JsonConfig::default())
@@ -59,6 +76,10 @@ async fn main() -> std::io::Result<()> {
             .service(finish_register)
             .service(start_authentication)
             .service(finish_authentication)
+            .service(add_polls)
+            .service(fetch_polls)
+            .service(delete_poll)
+            .service(update_poll)
             .wrap(
                 Cors::default() // Configure CORS to allow all origins
                     .allow_any_origin() // Allows all origins

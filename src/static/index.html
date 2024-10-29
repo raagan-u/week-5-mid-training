@@ -3,121 +3,35 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>WebAuthn Registration</title>
+        <title>
+            Polling Applicatoin API with WebAuthn Implementation for Auth
+        </title>
     </head>
     <body>
-        <h1>WebAuthn Registration</h1>
-        <button id="registerButton">Register</button>
-
-        <script>
-            async function startRegistration() {
-                // Post request to start registration
-                const response = await fetch(
-                    "http://127.0.0.1:8080/auth/start_reg/test",
-                    {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                    },
-                );
-
-                const publicKey = await response.json();
-                return publicKey;
-            }
-            function base64urlToUint8Array(base64url) {
-                const padding = "=".repeat((4 - (base64url.length % 4)) % 4); // Add padding
-                const base64 = (base64url + padding)
-                    .replace(/-/g, "+") // Replace '-' with '+'
-                    .replace(/_/g, "/"); // Replace '_' with '/'
-                const binaryString = window.atob(base64); // Decode base64
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                console.log("binary string");
-                console.log(binaryString.charCodeAt[1]);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-
-                return bytes;
-            }
-
-            async function webAuthnRegister() {
-                try {
-                    const publicKey = await startRegistration();
-
-                    // Decode the challenge and user id from base64url to Uint8Array
-                    const challenge = base64urlToUint8Array(
-                        publicKey.publicKey.challenge,
-                    );
-                    const userId = base64urlToUint8Array(
-                        publicKey.publicKey.user.id,
-                    ); // Decode user id
-
-                    const publicKeyOptions = {
-                        ...publicKey.publicKey,
-                        challenge: challenge,
-                        user: {
-                            ...publicKey.publicKey.user,
-                            id: userId, // Set the decoded user id
-                        },
-                    };
-
-                    console.log("Public Key Options:", publicKeyOptions);
-
-                    // Use the navigator.credentials.create method
-                    const credential = await navigator.credentials.create({
-                        publicKey: publicKeyOptions,
-                    });
-                    console.log("Created Credential:", credential);
-
-                    // Call finish_reg with the created credential
-                    const finishResponse = await fetch(
-                        "http://127.0.0.1:8080/auth/finish_reg",
-                        {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({
-                                id: credential.id,
-                                rawId: Array.from(
-                                    new Uint8Array(credential.rawId),
-                                ),
-                                response: {
-                                    attestationObject: Array.from(
-                                        new Uint8Array(
-                                            credential.response.attestationObject,
-                                        ),
-                                    ),
-                                    clientDataJSON: Array.from(
-                                        new Uint8Array(
-                                            credential.response.clientDataJSON,
-                                        ),
-                                    ),
-                                },
-                                type: credential.type,
-                            }),
-                        },
-                    );
-
-                    if (!finishResponse.ok) {
-                        throw new Error(
-                            "Failed to finish registration: " +
-                                finishResponse.statusText,
-                        );
-                    }
-
-                    const finishResult = await finishResponse.json();
-                    console.log("Registration finished:", finishResult);
-                } catch (error) {
-                    console.error("Error in WebAuthn registration:", error);
-                }
-            }
-
-            document
-                .getElementById("registerButton")
-                .addEventListener("click", webAuthnRegister);
-        </script>
+        <h1>Polling Application API</h1>
+        <h1>EndPoints</h1>
+        <h2>WebAuthn</h2>
+        <ol>
+            <li>
+                (POST) /auth/start-reg => To Start Registration for WebAuthn
+            </li>
+            <li>
+                (POST) /auth/finish-reg => To Complete Registration for WebAuthn
+            </li>
+            <li>
+                (POST) /auth/start-auth => To Start Authentication for WebAuthn
+            </li>
+            <li>
+                (POST) /auth/finish-auth => To Complete Authentication for
+                WebAuthn
+            </li>
+        </ol>
+        <h2>Polling Data</h2>
+        <ol>
+            <li>(POST) /poll/add-poll => To add poll data</li>
+            <li>(GET) /poll/fetch-polls => To fetch all poll data</li>
+            <li>(POST) /poll/update-poll => To update poll data</li>
+            <li>(DELETE) /poll/delete-poll/{poll_id} => To delete poll data</li>
+        </ol>
     </body>
 </html>
