@@ -1,11 +1,12 @@
 use actix_files::NamedFile;
 use actix_web::{
     middleware::Logger,
-    web::{Data, JsonConfig},
+    web::{self, Data, JsonConfig},
     {get, App, HttpRequest, HttpResponse, HttpServer, Responder},
 };
 use db::init;
 use dotenv::dotenv;
+use handler::middleware::auth_middleware::CheckAuth;
 use startup::startup;
 use std::env;
 use std::path::PathBuf;
@@ -72,14 +73,21 @@ async fn main() -> std::io::Result<()> {
             .app_data(webauthn_users.clone())
             .service(root_handler)
             .service(auth_handler)
-            .service(start_register)
-            .service(finish_register)
-            .service(start_authentication)
-            .service(finish_authentication)
-            .service(add_polls)
-            .service(fetch_polls)
-            .service(delete_poll)
-            .service(update_poll)
+            .service(
+                web::scope("/auth")
+                    .service(start_register)
+                    .service(finish_register)
+                    .service(start_authentication)
+                    .service(finish_authentication),
+            )
+            .service(
+                web::scope("/polls")
+                    .wrap(CheckAuth)
+                    .service(add_polls)
+                    .service(fetch_polls)
+                    .service(delete_poll)
+                    .service(update_poll),
+            )
             .wrap(
                 Cors::default() // Configure CORS to allow all origins
                     .allow_any_origin() // Allows all origins

@@ -31,3 +31,6 @@ tokio = { version = "1", features = [
     "rt-multi-thread",
 ] } # Async runtime
 mongodb = { version = "2.2.0", features = ["tokio-runtime"] }
+jsonwebtoken = "9.3.0"
+sha256 = "1.5.0"
+actix-web-lab = "0.23.0"

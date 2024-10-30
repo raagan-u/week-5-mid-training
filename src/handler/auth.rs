@@ -1,14 +1,17 @@
 use crate::handler::{Error, WebResult};
+use crate::models::jwt::encode_jwt;
 use crate::models::{auth_state::AuthenticationState, reg_state::RegistrationState};
 use crate::startup::UserData;
+use actix_web::error::ErrorInternalServerError;
 use actix_web::post;
 use actix_web::web::{Data, Json, Path};
 use actix_web::HttpResponse;
 use log::info;
+use serde_json::json;
 use tokio::sync::Mutex;
 use webauthn_rs::prelude::*;
 
-#[post("/auth/start_reg/{username}")]
+#[post("start_reg/{username}")]
 pub(crate) async fn start_register(
     username: Path<String>,
     reg_state_storage: Data<RegistrationState>,
@@ -56,7 +59,7 @@ pub(crate) async fn start_register(
     Ok(Json(ccr))
 }
 
-#[post("/auth/finish_reg")]
+#[post("finish_reg")]
 pub(crate) async fn finish_register(
     req: Json<RegisterPublicKeyCredential>,
     reg_state_storage: Data<RegistrationState>,
@@ -92,7 +95,7 @@ pub(crate) async fn finish_register(
     Ok(HttpResponse::Ok().body("Registration Successful"))
 }
 
-#[post("/auth/start_auth/{username}")]
+#[post("start_auth/{username}")]
 pub(crate) async fn start_authentication(
     username: Path<String>,
     webauthn_users: Data<Mutex<UserData>>,
@@ -133,7 +136,7 @@ pub(crate) async fn start_authentication(
     Ok(Json(rcr))
 }
 
-#[post("/auth/finish_auth")]
+#[post("/finish_auth")]
 pub(crate) async fn finish_authentication(
     auth: Json<PublicKeyCredential>,
     auth_state_store: Data<AuthenticationState>,
@@ -171,5 +174,21 @@ pub(crate) async fn finish_authentication(
         .ok_or(Error::UserHasNoCredentials)?;
 
     info!("Authentication Successful!");
-    Ok(HttpResponse::Ok().body("Auth Success"))
+    let token =
+        encode_jwt(&user_unique_id).map_err(|err| ErrorInternalServerError(err.to_string()));
+    let resp_body = match token {
+        Ok(token) => {
+            json!({
+               "token": token,
+            })
+        }
+        Err(e) => {
+            json!({
+                "error": format!("Error generating token : {}", e),
+            })
+        }
+    };
+    println!("{:#?}", resp_body);
+
+    Ok(HttpResponse::Ok().json(resp_body))
 }

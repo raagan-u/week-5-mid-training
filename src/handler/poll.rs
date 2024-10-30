@@ -5,7 +5,7 @@ use actix_web::{
     web::{Data, Json, Path},
     HttpResponse,
 };
-#[get("/poll/get-polls")]
+#[get("get-polls")]
 pub async fn fetch_polls(db: Data<dyn PollRepository>) -> HttpResponse {
     match db.get_poll().await {
         Ok(polls) => HttpResponse::Ok().json(polls),
@@ -13,7 +13,7 @@ pub async fn fetch_polls(db: Data<dyn PollRepository>) -> HttpResponse {
     }
 }
 
-#[post("/poll/add-poll")]
+#[post("add-poll")]
 pub async fn add_polls(db: Data<dyn PollRepository>, request: Json<Poll>) -> HttpResponse {
     match db.create_poll(request.into_inner()).await {
         Ok(poll) => HttpResponse::Ok().json(poll),
@@ -21,7 +21,7 @@ pub async fn add_polls(db: Data<dyn PollRepository>, request: Json<Poll>) -> Htt
     }
 }
 
-#[put("/poll/update-poll")]
+#[put("update-poll")]
 pub async fn update_poll(db: Data<dyn PollRepository>, request: Json<Poll>) -> HttpResponse {
     match db.update_poll(request.into_inner()).await {
         Ok(poll) => HttpResponse::Ok().json(poll),
@@ -29,7 +29,7 @@ pub async fn update_poll(db: Data<dyn PollRepository>, request: Json<Poll>) -> H
     }
 }
 
-#[delete("/poll/delete-poll/{poll_id}")]
+#[delete("delete-poll/{poll_id}")]
 pub async fn delete_poll(db: Data<dyn PollRepository>, path: Path<i64>) -> HttpResponse {
     let poll_id = path.into_inner(); // Extract the poll_id from the path
 
