@@ -74,15 +74,15 @@ async fn main() -> std::io::Result<()> {
             .service(root_handler)
             .service(auth_handler)
             .service(
-                web::scope("/auth")
+                web::scope("api/auth")
                     .service(start_register)
                     .service(finish_register)
                     .service(start_authentication)
                     .service(finish_authentication),
             )
             .service(
-                web::scope("/polls")
-                    .wrap(CheckAuth)
+                web::scope("api/polls")
+                    //.wrap(CheckAuth)
                     .service(add_polls)
                     .service(fetch_polls)
                     .service(delete_poll)

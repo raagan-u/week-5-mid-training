@@ -48,20 +48,22 @@ impl PollRepository for MongoPollRepo {
         Ok(poll)
     }
 
-    async fn get_poll(&self) -> Result<Vec<Poll>, Box<dyn std::error::Error>> {
+    async fn get_poll(&self, poll_id: i64) -> Result<Option<Poll>, Box<dyn std::error::Error>> {
         println!("Entered get_poll");
-        let mut cursor = self.collection.find(None, None).await?;
-        let mut polls = Vec::new();
 
-        while let Some(result) = cursor.next().await {
-            match result {
-                Ok(poll) => {
-                    polls.push(poll);
-                }
-                Err(e) => eprintln!("Error retrieving polls: {:?}", e),
+        let filter = doc! { "poll_id": poll_id };
+
+        match self.collection.find_one(filter, None).await {
+            Ok(Some(poll)) => Ok(Some(poll)),
+            Ok(None) => {
+                eprintln!("No poll found with poll_id: {}", poll_id);
+                Ok(None)
+            }
+            Err(e) => {
+                eprintln!("Error retrieving poll: {:?}", e);
+                Err(Box::new(e))
             }
         }
-        Ok(polls)
     }
 
     async fn update_poll(&self, poll: Poll) -> Result<Poll, Box<dyn std::error::Error>> {
