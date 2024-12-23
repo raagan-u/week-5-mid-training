@@ -18,7 +18,7 @@ mod startup;
 use crate::db::{config::DbConfig, poll_crud::PollRepository};
 use crate::handler::{
     auth::{finish_authentication, finish_register, start_authentication, start_register},
-    poll::{add_polls, delete_poll, fetch_polls, update_poll},
+    poll::{add_polls, cast_vote, close_poll, delete_poll, fetch_polls, reset_vote},
 };
 use crate::models::{auth_state::AuthenticationState, reg_state::RegistrationState};
 use actix_cors::Cors; // Import the CORS middlewar
@@ -86,7 +86,9 @@ async fn main() -> std::io::Result<()> {
                     .service(add_polls)
                     .service(fetch_polls)
                     .service(delete_poll)
-                    .service(update_poll),
+                    .service(cast_vote)
+                    .service(close_poll)
+                    .service(reset_vote),
             )
             .wrap(
                 Cors::default() // Configure CORS to allow all origins

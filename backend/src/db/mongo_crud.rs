@@ -1,9 +1,11 @@
 use crate::db::{config::DbConfig, poll_crud::PollRepository};
 use crate::models::poll::Poll;
-use futures::StreamExt;
 
-use mongodb::bson::{doc, to_document};
-use mongodb::{Client, Collection};
+use mongodb::bson::doc;
+use mongodb::{
+    options::UpdateOptions,
+    {Client, Collection},
+};
 
 #[derive(Clone)]
 pub struct MongoPollRepo {
@@ -66,16 +68,58 @@ impl PollRepository for MongoPollRepo {
         }
     }
 
-    async fn update_poll(&self, poll: Poll) -> Result<Poll, Box<dyn std::error::Error>> {
-        let filter = doc! { "poll_id": &poll.poll_id };
-        let update = doc! { "$set": to_document(&poll).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)? };
+    async fn update_poll(
+        &self,
+        poll_id: i64,
+        target: String,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let filter = doc! { "poll_id": poll_id };
+        let mut update = doc! {};
+        if target == "reset" {
+            update = doc! {
+                  "$set": { "options.$[].votes": 0 }
+            };
+        } else {
+            update = doc! {
+                "$set": { "status": "closed" }
+            }
+        }
+
         self.collection.update_one(filter, update, None).await?;
-        Ok(poll) // Return the updated poll
+        Ok(()) // Return the updated poll
     }
 
     async fn delete_poll(&self, poll_id: i64) -> Result<(), Box<dyn std::error::Error>> {
         let filter = doc! { "poll_id": poll_id };
         self.collection.delete_one(filter, None).await?;
+        Ok(())
+    }
+
+    async fn vote_poll(
+        &self,
+        poll_id: i64,
+        option_id: i64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let filter = doc! { "poll_id": poll_id, "status": "active" };
+        let update = doc! {
+            "$inc": { "options.$[elem].votes": 1 }
+        };
+        let array_filters = vec![doc! { "elem.option_id": option_id }];
+
+        let options = UpdateOptions::builder()
+            .array_filters(array_filters)
+            .build();
+
+        let result = self.collection.update_one(filter, update, options).await?;
+
+        if result.matched_count == 0 {
+            println!("No matching active poll or option found.");
+        } else if result.modified_count == 0 {
+            println!("Vote not recorded; possibly a conflict.");
+        } else {
+            println!("Vote successfully recorded!");
+        }
+
         Ok(())
     }
 }
