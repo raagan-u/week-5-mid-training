@@ -1,13 +1,12 @@
 "use client";
-import useUserStore from "@/stores/useUserStore";
 import { useState, useEffect } from "react";
 
-export default function Home() {
+export default function Manage() {
   const [fil, setFil] = useState("active"); // Filter state
   const [data, setData] = useState<any[]>([]); // Poll data state
   const [loading, setLoading] = useState(true); // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
-  const {name} = useUserStore();
+
   // Fetch data on mount
   useEffect(() => {
     const fetchData = async () => {
@@ -29,34 +28,11 @@ export default function Home() {
   }, []);
 
   // Handle loading and error states
-  if (loading) return <div>Loading... wait</div>;
+  if (loading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
-  
 
   return (
     <div className="flex-row">
-      {/* Navigation */}
-      <nav className="flex fixed w-screen h-16 bg-black">
-        <h1>{name}</h1>
-        <ul className="flex items-center justify-center text-white">
-          <li className="px-5">
-            <a href="/">Home</a>
-          </li>
-          <li className="px-5">
-            <a href="/login">Login</a>
-          </li>
-          <li className="px-5">
-            <a href="/register">Register</a>
-          </li>
-          <li className="px-5">
-            <a href="/polls/new">Create</a>
-          </li>
-          <li className="px-5">
-            <a href="/polls/manage">Manage</a>
-          </li>
-        </ul>
-      </nav>
-
       {/* Main Content */}
       <main className="pt-16">
         {/* Filter Dropdown */}
@@ -74,7 +50,7 @@ export default function Home() {
         <ul className="flex flex-wrap p-16 gap-4">
           {data
             .filter((poll) => poll.status === fil)
-            .map((post) => (
+            .map((post) => (   
               <div
                 key={post.poll_id}
                 className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700"

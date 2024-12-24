@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { startRegistration } from '@simplewebauthn/browser';
+import { redirect } from "next/navigation";
 
 export default function Register() {
     const [name, setName] = useState('');
@@ -16,7 +17,7 @@ export default function Register() {
 
         try {
             // Step 1: Get registration options from the server
-            const response = await fetch('http://localhost:8080/auth/start_reg/'+name, {
+            const response = await fetch('http://localhost:8080/api/auth/start_reg/'+name, {
                 method: "POST"
             });
             const jsonresp = await response.json();
@@ -27,7 +28,7 @@ export default function Register() {
 
             // Step 3: POST the response to the server for verification
             
-            const verificationResponse = await fetch('http://localhost:8080/auth/finish_reg', {
+            const verificationResponse = await fetch('http://localhost:8080/api/auth/finish_reg', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -54,7 +55,7 @@ export default function Register() {
         <div className="flex h-[100vh] items-center  justify-center bg-black">
         <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-lg">
             <h1 className="text-2xl font-semibold text-gray-800 text-center mb-6">
-                Login
+                Register
             </h1>
             <form onSubmit={handleRegister} className="space-y-6">
                 <div>
@@ -66,7 +67,7 @@ export default function Register() {
                         name="email"
                         type="email"
                         required
-                        className="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        className="text-black mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                         onChange={(e) => setName(e.target.value)}
                     />
                 </div>
@@ -79,7 +80,7 @@ export default function Register() {
                         name="name"
                         type="text"
                         required
-                        className="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        className="text-black mt-2 block w-full rounded-md  shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
                         onChange={(e) => setName(e.target.value)}
                     />
                 </div>
@@ -89,10 +90,9 @@ export default function Register() {
                 >
                     Login
                 </button>
-                {successMessage && <p className="mt-4 text-sm text-green-600">{successMessage}</p>}
+                {successMessage && <p className="mt-4 text-sm text-green-600">{successMessage}</p> && redirect("/login")}
                 {errorMessage && <p className="mt-4 text-sm text-red-600">{errorMessage}</p>}
             </form>
-            <h1>TETS</h1>
         </div>
     </div>
     )
