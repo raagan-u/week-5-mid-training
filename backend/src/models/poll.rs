@@ -11,7 +11,8 @@ pub struct PollOption {
 pub struct Poll {
     pub poll_id: i64,
     pub title: String,
-    pub description: Option<String>,
+    pub creator: String,
+    pub description: String,
     pub created_at: DateTime<Utc>,
     pub expiration_date: Option<DateTime<Utc>>,
     pub status: String, // Active, expired, closed

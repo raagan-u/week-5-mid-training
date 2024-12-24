@@ -81,7 +81,7 @@ async fn main() -> std::io::Result<()> {
                     .service(finish_authentication),
             )
             .service(
-                web::scope("api/polls")
+                web::scope("api")
                     //.wrap(CheckAuth)
                     .service(add_polls)
                     .service(fetch_polls)

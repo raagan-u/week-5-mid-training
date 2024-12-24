@@ -7,20 +7,28 @@ use actix_web::{
 };
 use serde::Deserialize;
 
-#[post("/")]
+#[post("polls")]
 pub async fn add_polls(db: Data<dyn PollRepository>, request: Json<Poll>) -> HttpResponse {
+    println!("Received Poll Data: {:#?}", request);
     match db.create_poll(request.into_inner()).await {
         Ok(poll) => HttpResponse::Ok().json(poll),
         Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
 
-#[get("/{poll_id}")]
+#[get("polls/{poll_id}")]
 pub async fn fetch_polls(db: Data<dyn PollRepository>, path: Path<i64>) -> HttpResponse {
     let poll_id = path.into_inner();
-    match db.get_poll(poll_id).await {
-        Ok(polls) => HttpResponse::Ok().json(polls),
-        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+    if poll_id == 0 {
+        match db.fetch_all().await {
+            Ok(polls) => HttpResponse::Ok().json(polls),
+            Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+        }
+    } else {
+        match db.get_poll(poll_id).await {
+            Ok(polls) => HttpResponse::Ok().json(polls),
+            Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+        }
     }
 }
 
@@ -29,7 +37,7 @@ pub struct VoteOption {
     option_id: i64,
 }
 
-#[post("/{poll_id}/vote")]
+#[post("polls/{poll_id}/vote")]
 pub async fn cast_vote(
     db: Data<dyn PollRepository>,
     path: Path<i64>,
@@ -42,7 +50,7 @@ pub async fn cast_vote(
         Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
-#[post("/{poll_id}/reset")]
+#[post("polls/{poll_id}/reset")]
 pub async fn reset_vote(db: Data<dyn PollRepository>, path: Path<i64>) -> HttpResponse {
     let poll_id = path.into_inner();
     match db.update_poll(poll_id, "reset".to_string()).await {
@@ -54,7 +62,7 @@ pub async fn reset_vote(db: Data<dyn PollRepository>, path: Path<i64>) -> HttpRe
     }
 }
 
-#[post("/{poll_id}/close")]
+#[post("polls/{poll_id}/close")]
 pub async fn close_poll(db: Data<dyn PollRepository>, path: Path<i64>) -> HttpResponse {
     let poll_id = path.into_inner();
     match db.update_poll(poll_id, "close".to_string()).await {
@@ -66,7 +74,7 @@ pub async fn close_poll(db: Data<dyn PollRepository>, path: Path<i64>) -> HttpRe
     }
 }
 
-#[delete("delete-poll/{poll_id}")]
+#[delete("polls/delete-poll/{poll_id}")]
 pub async fn delete_poll(db: Data<dyn PollRepository>, path: Path<i64>) -> HttpResponse {
     let poll_id = path.into_inner(); // Extract the poll_id from the path
 

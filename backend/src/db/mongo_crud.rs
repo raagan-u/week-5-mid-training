@@ -1,6 +1,7 @@
 use crate::db::{config::DbConfig, poll_crud::PollRepository};
 use crate::models::poll::Poll;
 
+use futures::TryStreamExt;
 use mongodb::bson::doc;
 use mongodb::{
     options::UpdateOptions,
@@ -31,12 +32,6 @@ impl MongoPollRepo {
 impl PollRepository for MongoPollRepo {
     async fn create_poll(&self, poll: Poll) -> Result<Poll, Box<dyn std::error::Error>> {
         println!("Entered Create Poll Func");
-        let options = poll.options.clone();
-        let mut op_id = 1;
-        for mut option in options.clone() {
-            option.option_id = op_id;
-            op_id += 1;
-        }
         println!("{:#?}", poll);
         match self.collection.insert_one(poll.clone(), None).await {
             Ok(insert_one_result) => {
@@ -48,6 +43,19 @@ impl PollRepository for MongoPollRepo {
         }
 
         Ok(poll)
+    }
+
+    async fn fetch_all(&self) -> Result<Vec<Poll>, Box<dyn std::error::Error>> {
+        match self.collection.find(None, None).await {
+            Ok(polls) => {
+                let poll_vec = polls.try_collect().await?;
+                Ok(poll_vec)
+            }
+            Err(e) => {
+                eprintln!("Error retrieving poll: {:?}", e);
+                Err(Box::new(e))
+            }
+        }
     }
 
     async fn get_poll(&self, poll_id: i64) -> Result<Option<Poll>, Box<dyn std::error::Error>> {
