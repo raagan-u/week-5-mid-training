@@ -11,9 +11,10 @@ webauthn-rs = { version = "0.4", features = [
 ] }
 log = "~0.4"
 actix-web = "4"
+parking_lot = "0.12.1"
 env_logger = "0.10"
 dotenv = "0.15"
-uuid = { version = "1.0", features = ["serde", "v4"] }
+uuid = { version = "1.4", features = ["serde", "v4"] }
 actix-cors = "0.6" # make sure to specify the correct version
 async-trait = { version = "0.1" }
 anyhow = { version = "~1" }
@@ -30,7 +31,14 @@ tokio = { version = "1", features = [
     "macros",
     "rt-multi-thread",
 ] } # Async runtime
+tracing = "0.1"
 mongodb = { version = "2.2.0", features = ["tokio-runtime"] }
 jsonwebtoken = "9.3.0"
 sha256 = "1.5.0"
 actix-web-lab = "0.23.0"
+futures-util = { version = "0.3.25", default-features = false, features = [
+    "std",
+] }
+bytestring = "1.4.0"
+tokio-stream = "0.1"
+futures-core = "0.3"

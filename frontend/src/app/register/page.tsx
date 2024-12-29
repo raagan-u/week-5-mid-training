@@ -5,6 +5,7 @@ import { startRegistration } from '@simplewebauthn/browser';
 import { redirect } from "next/navigation";
 
 export default function Register() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
     const [name, setName] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -17,7 +18,7 @@ export default function Register() {
 
         try {
             // Step 1: Get registration options from the server
-            const response = await fetch('http://localhost:8080/api/auth/start_reg/'+name, {
+            const response = await fetch(`${apiUrl}/api/auth/start_reg/`+name, {
                 method: "POST"
             });
             const jsonresp = await response.json();
@@ -28,7 +29,7 @@ export default function Register() {
 
             // Step 3: POST the response to the server for verification
             
-            const verificationResponse = await fetch('http://localhost:8080/api/auth/finish_reg', {
+            const verificationResponse = await fetch(`${apiUrl}/api/auth/finish_reg`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -86,9 +87,9 @@ export default function Register() {
                 </div>
                 <button
                     type="submit"
-                    className="w-full bg-yellow-600 text-white py-2 rounded-md font-medium shadow-md hover:bg-indigo-500 focus:ring-2 focus:ring-indigo-400"
+                    className="w-full bg-black text-white py-2 rounded-md font-medium shadow-md hover:bg-gray-800 focus:ring-2 focus:ring-indigo-400"
                 >
-                    Login
+                    Register
                 </button>
                 {successMessage && <p className="mt-4 text-sm text-green-600">{successMessage}</p> && redirect("/login")}
                 {errorMessage && <p className="mt-4 text-sm text-red-600">{errorMessage}</p>}

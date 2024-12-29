@@ -2,20 +2,61 @@
 import useUserStore from "@/stores/useUserStore";
 import { useEffect, useState } from "react";
 
+export interface PollOption {
+  option_id: number;
+  text: string;
+  votes: number;
+}
+
+export interface Poll {
+  poll_id: number;
+  title: string;
+  creator: string;
+  description: string;
+  created_at: string;
+  expiration_date?: string | null;
+  status: "active" | "expired" | "closed";
+  options: PollOption[];
+  users_voted: string[];
+
+  [key: string]: string|number|null|string[]| PollOption[]| undefined;
+}
+
 export default function PollDetails({ params }: { params: Promise<{ pollId: string }> }) {
-  const [pollId, setPollId] = useState<string| null>(null);
-  const [post, setPost] = useState<any>(null); // State to hold fetched poll data
-  const [loading, setLoading] = useState(true); // Loading state
-  const [error, setError] = useState<string | null>(null); // Error state
-  const [vote, selectVote] = useState<string | null>(null); // Selected vote option
-  const {name} = useUserStore();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const [pollId, setPollId] = useState<string | null>(null);
+  const [post, setPost] = useState<Poll | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [vote, selectVote] = useState<string | null>(null);
+  const [isLive, setIsLive] = useState(false);
+  const { name } = useUserStore();
 
-  const handleRadioChange = (
-    value: string
-    ) => {
+  const handleRadioChange = (value: string) => {
     selectVote(value);
-};
+  };
 
+  const fetchData = async () => {
+    try {
+      const resolvedParams = await params;
+      setPollId(resolvedParams.pollId);
+      const response = await fetch(`${apiUrl}/api/polls/${resolvedParams.pollId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch poll data");
+      }
+      const data = await response.json();
+
+      setPost(data);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   async function onSubmit(event: React.MouseEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -23,103 +64,124 @@ export default function PollDetails({ params }: { params: Promise<{ pollId: stri
       alert("Please select an option before voting.");
       return;
     }
-    try {   
+    try {
       const response = await fetch(
-        `http://localhost:8080/api/polls/${pollId}/vote?option_id=${vote}`,
+        `${apiUrl}/api/polls/${pollId}/vote?option_id=${vote}&username=${name}`,
         {
-          method: "POST"
+          method: "POST",
+          body: JSON.stringify({ user: name }),
         }
       );
-      
+
       if (response.status !== 200) {
         throw new Error("Failed to submit vote");
       }
-      alert("Vote Casted Successfullly")
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+      alert("Vote Casted Successfully");
+      fetchData();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred");
+      }
     }
   }
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const resolvedParams = await params;
-        setPollId(resolvedParams.pollId);
-        const response = await fetch(`http://localhost:8080/api/polls/${resolvedParams.pollId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch poll data");
-        }
-        const data = await response.json();
-        
-        
-        setPost(data); // Set the fetched data to state
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    
 
     fetchData();
   }, [params]);
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  useEffect(() => {
+    if (isLive && pollId) {
+      const eventSource = new EventSource(`${apiUrl}/api/polls/${pollId}/results?live=true`);
 
-  if (!post) return <div>No poll data available</div>;
-  if (post.status === "closed") return <div>Poll Closed</div>
-  if (post.status === "expired ") return <div>Poll Expired</div>
-  if (!post.options) return <div>Nil</div>
-  const totalVotes = post.options.reduce((sum: number, option: any) => sum + option.votes, 0); // Calculate total votes
+      eventSource.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            setPost(data)
+        } catch (error) {
+            console.error("Error parsing data:", error);
+        }
+    };
+    
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        setIsLive(false);
+        alert("Live updates stopped due to an error.");
+      };
+
+      return () => {
+        eventSource.close();
+      };
+    }
+  }, [isLive, pollId]);
+
+  if (loading) return <div className="text-center">Loading...</div>;
+  if (error) return <div className="text-center text-red-500">Error: {error}</div>;
+
+  if (!post) return <div className="text-center">No poll data available</div>;
+  if (post.status === "closed") return <div className="text-center">Poll Closed</div>;
+  if (post.status === "expired") return <div className="text-center">Poll Expired</div>;
+  if (!post.options) return <div className="text-center">Nil</div>;
+
+  const totalVotes = post.options.reduce((sum, option) => sum + option.votes, 0);
 
   return (
-    <div className="w-full h-screen flex flex-col items-center">
-      <h1>{name}</h1>
-  <div className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700">
-    <ul className="space-y-2">
-      <li key={post.poll_id}>
-        <h2 className="text-xl font-bold">{post.title}</h2>
-      </li>
-      <li className="text-gray-600">{post.description}</li>
-      <li>Status: <span className="font-medium">{post.status}</span></li>
-      <li>Created At: {post.created_at}</li>
-      <li>Expiration Date: {post.expiration_date}</li>
-    </ul>
-
-    <ul className="mt-4 space-y-3">
-      {post.options.map((option: any) => {
-        const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
-
-        return (
-          <li key={option.option_id} className="flex items-center space-x-3">
-            <input
-              id={`option-${option.option_id}`}
-              type="radio"
-              value={option.option_id}
-              checked={vote === option.option_id}
-              onChange={() => handleRadioChange(option.option_id)}
-              className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-            />
-            <label
-              htmlFor={`option-${option.option_id}`}
-              className="text-gray-900 dark:text-gray-200"
-            >
-              {option.text} - {option.votes} : {Math.round(percentage)}%
-            </label>
+    <div className="w-full flex flex-col items-center mt-16 px-4 sm:px-6 lg:px-8 pt-20">
+      <div className="w-full max-w-lg p-6 bg-white border border-gray-200 rounded-lg shadow-md ">
+        <ul className="space-y-4">
+          <li key={post.poll_id}>
+            <h2 className="text-2xl font-bold text-gray-900">{post.title}</h2>
           </li>
-        );
-      })}
-    </ul>
-  </div>
+          <li className="text-gray-900">{post.description}</li>
+          <li>
+            Status: <span className="font-medium text-gray-900">{post.status}</span>
+          </li>
+          <li>Created At: {post.created_at}</li>
+          <li>Expiration Date: {post.expiration_date}</li>
+        </ul>
 
-{  name && <button
-    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-    onClick={onSubmit}
+        <ul className="mt-6 space-y-4">
+          {post.options.map((option) => {
+            const percentage = totalVotes > 0 ? (option.votes / totalVotes) * 100 : 0;
 
-  >
-    Submit Vote
-  </button>}
-</div>
-
+            return (
+              <li key={option.option_id} className="flex items-center space-x-4">
+                <input
+                  id={`option-${option.option_id}`}
+                  type="radio"
+                  value={option.option_id}
+               //   checked={vote === option.option_id}
+                  onChange={() => handleRadioChange(option.option_id.toString())}
+                  className="h-5 w-5 text-blue-600 border-gray-300 focus:ring-2 focus:ring-blue-500"
+                />
+                <label
+                  htmlFor={`option-${option.option_id}`}
+                  className="text-gray-900"
+                >
+                  {option.text} - {option.votes} : {Math.round(percentage)}%
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <button
+        className="mt-6 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-300"
+        onClick={onSubmit}
+        disabled={post.users_voted.includes(name)}
+      >
+        {name === "" ? <span>LOGIN TO VOTE</span> : <span>SUBMIT VOTE</span>}
+      </button>
+      <button
+        className="mt-6 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-4 focus:ring-green-300"
+        onClick={() => setIsLive(!isLive)}
+      >
+        {isLive ? "STOP LIVE" : "GO LIVE"}
+      </button>
+    </div>
   );
 }

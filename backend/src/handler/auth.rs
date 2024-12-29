@@ -1,42 +1,27 @@
+use crate::db::user_crud::UserRepository;
 use crate::handler::{Error, WebResult};
 use crate::models::jwt::encode_jwt;
-use crate::models::{auth_state::AuthenticationState, reg_state::RegistrationState};
-use crate::startup::UserData;
+use crate::models::{auth_state::AuthenticationState, reg_state::RegistrationState, user::User};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::post;
 use actix_web::web::{Data, Json, Path};
 use actix_web::HttpResponse;
 use log::info;
 use serde_json::json;
-use tokio::sync::Mutex;
 use webauthn_rs::prelude::*;
 
 #[post("start_reg/{username}")]
 pub(crate) async fn start_register(
     username: Path<String>,
     reg_state_storage: Data<RegistrationState>,
-    webauthn_users: Data<Mutex<UserData>>,
     webauthn: Data<Webauthn>,
 ) -> WebResult<Json<CreationChallengeResponse>> {
     info!("Start register");
     reg_state_storage.remove("reg_state".to_string()).await;
-    let user_unique_id = {
-        let users_guard = webauthn_users.lock().await;
-        users_guard
-            .name_to_id
-            .get(username.as_str())
-            .copied()
-            .unwrap_or_else(Uuid::new_v4)
-    };
-    println!("user unique id : {}", user_unique_id);
 
-    let exclude_credentials = {
-        let users_guard = webauthn_users.lock().await;
-        users_guard
-            .keys
-            .get(&user_unique_id)
-            .map(|keys| keys.iter().map(|sk| sk.cred_id().clone()).collect())
-    };
+    let username = username.into_inner();
+    let user_unique_id = Uuid::new_v4();
+    let exclude_credentials = { None };
     println!("exclude creds : {:#?}", exclude_credentials);
 
     let (ccr, reg_state) = webauthn
@@ -63,9 +48,9 @@ pub(crate) async fn start_register(
 pub(crate) async fn finish_register(
     req: Json<RegisterPublicKeyCredential>,
     reg_state_storage: Data<RegistrationState>,
-    webauthn_users: Data<Mutex<UserData>>,
+    db: Data<dyn UserRepository>,
     webauthn: Data<Webauthn>,
-) -> WebResult<HttpResponse> {
+) -> HttpResponse {
     println!("Entered finsih reg");
     let registration_state = reg_state_storage
         .get("reg_state".to_string())
@@ -73,7 +58,8 @@ pub(crate) async fn finish_register(
         .ok_or_else(|| {
             eprintln!("Registration state not found for user ID:");
             Error::CorruptSession
-        })?;
+        })
+        .unwrap();
     let (username, user_unique_id, reg_state) = registration_state;
 
     let sk = webauthn
@@ -81,79 +67,98 @@ pub(crate) async fn finish_register(
         .map_err(|e| {
             info!("challenge_register -> {:?}", e);
             Error::BadRequest(e)
-        })?;
+        });
+    let final_keys = sk.unwrap();
 
-    let mut users_guard = webauthn_users.lock().await;
+    let user = User {
+        user_id: user_unique_id.to_string(),
+        user_name: username,
+        keys: vec![final_keys],
+        owned_polls: None,
+        polls_voted: None,
+    };
 
-    users_guard
-        .keys
-        .entry(user_unique_id)
-        .and_modify(|keys| keys.push(sk.clone()))
-        .or_insert_with(|| vec![sk.clone()]);
-
-    users_guard.name_to_id.insert(username, user_unique_id);
-    Ok(HttpResponse::Ok().body("Registration Successful"))
+    match db.create_user(user).await {
+        Ok(_) => HttpResponse::Ok().body("success"),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+    }
 }
 
 #[post("start_auth/{username}")]
 pub(crate) async fn start_authentication(
     username: Path<String>,
-    webauthn_users: Data<Mutex<UserData>>,
+    db: Data<dyn UserRepository>,
     auth_state_store: Data<AuthenticationState>,
     webauthn: Data<Webauthn>,
-) -> WebResult<Json<RequestChallengeResponse>> {
+) -> HttpResponse {
     info!("Start Authentication");
     auth_state_store.remove("auth_state".to_string()).await;
 
-    // Get the set of keys that the user possesses
-    let users_guard = webauthn_users.lock().await;
+    match db.get_user(username.to_string()).await {
+        Ok(user_doc) => {
+            if let Some(user) = user_doc {
+                match Uuid::parse_str(user.user_id.as_str()) {
+                    Ok(user_unique_id) => {
+                        let allow_credentials = user.keys;
+                        match webauthn.start_passkey_authentication(&allow_credentials) {
+                            Ok((rcr, auth_state)) => {
+                                auth_state_store
+                                    .insert((user_unique_id, auth_state.clone()))
+                                    .await;
 
-    // Look up their unique id from the username
-    let user_unique_id = users_guard
-        .name_to_id
-        .get(username.as_str())
-        .copied()
-        .ok_or(Error::UserNotFound)?;
-
-    let allow_credentials = users_guard
-        .keys
-        .get(&user_unique_id)
-        .ok_or(Error::UserHasNoCredentials)?;
-
-    let (rcr, auth_state) = webauthn
-        .start_passkey_authentication(allow_credentials)
-        .map_err(|e| {
-            info!("challenge_authenticate -> {:?}", e);
-            Error::Unknown(e)
-        })?;
-
-    drop(users_guard);
-
-    auth_state_store
-        .insert((user_unique_id, auth_state.clone()))
-        .await;
-    println!("FINISHED AUTH START \n\n\n\n{:#?}", auth_state);
-    Ok(Json(rcr))
+                                // Return a successful response with the JSON payload
+                                HttpResponse::Ok().json(rcr)
+                            }
+                            Err(e) => {
+                                // Log and return an error response if authentication fails
+                                info!("Authentication failed: {:?}", e);
+                                HttpResponse::InternalServerError()
+                                    .json(format!("Authentication failed: {:?}", e))
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // Return error response if user ID parsing fails
+                        info!("Invalid user ID format: {}", e);
+                        HttpResponse::BadRequest().json(format!("Invalid user ID format: {}", e))
+                    }
+                }
+            } else {
+                // Return an error if user is not found
+                info!("User not found");
+                HttpResponse::NotFound().json("User not found")
+            }
+        }
+        Err(err) => {
+            // Handle database errors or failure to fetch the user
+            info!("Error fetching user: {}", err);
+            HttpResponse::InternalServerError().json(format!("Error fetching user: {}", err))
+        }
+    }
 }
-
-#[post("/finish_auth")]
+#[post("/finish_auth/{username}")]
 pub(crate) async fn finish_authentication(
     auth: Json<PublicKeyCredential>,
+    username: Path<String>,
     auth_state_store: Data<AuthenticationState>,
-    webauthn_users: Data<Mutex<UserData>>,
+    db: Data<dyn UserRepository>,
     webauthn: Data<Webauthn>,
 ) -> WebResult<HttpResponse> {
-    println!("Etnered finish auth");
+    println!("Entered finish auth");
+
+    // Retrieve the authentication state
     let auth_state = auth_state_store
         .get("auth_state".to_string())
         .await
         .ok_or_else(|| {
-            eprintln!("Registration state not found for user ID:");
+            eprintln!("Registration state not found for user ID");
             Error::CorruptSession
         })?;
 
+    let username = username.into_inner();
     let (user_unique_id, auth_state) = auth_state;
 
+    // Authenticate using the passkey
     let auth_result = webauthn
         .finish_passkey_authentication(&auth, &auth_state)
         .map_err(|e| {
@@ -161,34 +166,48 @@ pub(crate) async fn finish_authentication(
             Error::BadRequest(e)
         })?;
 
-    let mut users_guard = webauthn_users.lock().await;
+    // Fetch the user from the database
+    let user_doc = db.get_user(username.clone()).await;
 
-    users_guard
-        .keys
-        .get_mut(&user_unique_id)
-        .map(|keys| {
-            keys.iter_mut().for_each(|sk| {
-                sk.update_credential(&auth_result);
-            })
-        })
-        .ok_or(Error::UserHasNoCredentials)?;
+    // Handle the case where the user is not found or there was an error fetching the user
+    if let Err(err) = user_doc {
+        let resp_body = json!({
+            "error": format!("Error fetching user: {}", err),
+        });
+        return Ok(HttpResponse::InternalServerError().json(resp_body));
+    }
 
-    info!("Authentication Successful!");
-    let token =
-        encode_jwt(&user_unique_id).map_err(|err| ErrorInternalServerError(err.to_string()));
-    let resp_body = match token {
-        Ok(token) => {
-            json!({
-               "token": token,
-            })
-        }
-        Err(e) => {
-            json!({
-                "error": format!("Error generating token : {}", e),
-            })
-        }
-    };
-    println!("{:#?}", resp_body);
+    if let Some(mut user) = user_doc.unwrap() {
+        // Update the credentials for the user
+        user.keys.iter_mut().for_each(|key| {
+            key.update_credential(&auth_result);
+        });
+        // temporary workaround
+        db.delete_user(user_unique_id.to_string()).await.unwrap();
+        db.create_user(user).await.unwrap();
 
-    Ok(HttpResponse::Ok().json(resp_body))
+        info!("Authentication Successful!");
+
+        // Generate JWT token
+        let token =
+            encode_jwt(&user_unique_id).map_err(|err| ErrorInternalServerError(err.to_string()));
+
+        let resp_body = match token {
+            Ok(token) => json!({
+                "token": token,
+            }),
+            Err(e) => json!({
+                "error": format!("Error generating token: {}", e),
+            }),
+        };
+
+        println!("{:#?}", resp_body);
+        Ok(HttpResponse::Ok().json(resp_body))
+    } else {
+        // User not found in DB
+        let resp_body = json!({
+            "error": "User not found",
+        });
+        Ok(HttpResponse::NotFound().json(resp_body))
+    }
 }

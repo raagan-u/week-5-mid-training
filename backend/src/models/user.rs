@@ -1,10 +1,18 @@
-pub struct CastedVotes {
-    poll_id: i64,
-    option_id: i64,
+use serde::{Deserialize, Serialize};
+
+use webauthn_rs::prelude::*;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Votes {
+    pub poll_id: i64,
+    pub option_id: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
-    user_id: i64,
-    email: String,
-    votes: Vec<CastedVotes>,
+    pub user_id: String,
+    pub user_name: String,
+    pub polls_voted: Option<Vec<Votes>>,
+    pub owned_polls: Option<Vec<i64>>,
+    pub keys: Vec<Passkey>,
 }

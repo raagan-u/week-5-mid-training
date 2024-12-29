@@ -21,10 +21,6 @@ pub(crate) enum Error {
     CorruptSession,
     #[error("Bad request")]
     BadRequest(#[from] WebauthnError),
-    #[error("User not found")]
-    UserNotFound,
-    #[error("User has no credentials")]
-    UserHasNoCredentials,
 }
 
 impl actix_web::ResponseError for Error {

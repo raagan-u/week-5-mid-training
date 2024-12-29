@@ -3,7 +3,10 @@ use crate::models::poll::Poll;
 pub trait PollRepository: Send + Sync {
     async fn create_poll(&self, poll: Poll) -> Result<Poll, Box<dyn std::error::Error>>;
     async fn fetch_all(&self) -> Result<Vec<Poll>, Box<dyn std::error::Error>>;
-    async fn get_poll(&self, poll_id: i64) -> Result<Option<Poll>, Box<dyn std::error::Error>>;
+    async fn get_poll(
+        &self,
+        poll_id: i64,
+    ) -> Result<Option<Poll>, Box<dyn std::error::Error + Send + Sync>>;
     async fn update_poll(
         &self,
         poll_id: i64,
@@ -14,5 +17,6 @@ pub trait PollRepository: Send + Sync {
         &self,
         poll_id: i64,
         option_id: i64,
+        username: String,
     ) -> Result<(), Box<dyn std::error::Error>>;
 }

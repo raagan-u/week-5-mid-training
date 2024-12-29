@@ -1,25 +1,36 @@
 "use client";
-import useUserStore from "@/stores/useUserStore";
+import usePollStore from "@/stores/usePollStore";
+import { redirect } from "next/navigation";
 import { useState, useEffect } from "react";
 
+export interface PollOption {
+  option_id: number;
+  text: string;
+  votes: number;
+}
+
+
 export default function Home() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
   const [fil, setFil] = useState("active"); // Filter state
-  const [data, setData] = useState<any[]>([]); // Poll data state
   const [loading, setLoading] = useState(true); // Loading state
   const [error, setError] = useState<string | null>(null); // Error state
-  const {name} = useUserStore();
+  const {polls, initPolls} = usePollStore();
   // Fetch data on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("http://localhost:8080/api/polls/0");
-        if (!response.ok) {
-          throw new Error("Failed to fetch data");
+
+        const data = await fetch(`${apiUrl}/api/polls/0`);
+        const resp = await data.json();
+        console.log(resp);
+        initPolls(resp);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("An unexpected error occurred");
         }
-        const result = await response.json();
-        setData(result); // Update data state
-      } catch (err: any) {
-        setError(err.message);
       } finally {
         setLoading(false); // Stop loading
       }
@@ -28,59 +39,42 @@ export default function Home() {
     fetchData();
   }, []);
 
+
   // Handle loading and error states
   if (loading) return <div>Loading... wait</div>;
   if (error) return <div>Error: {error}</div>;
   
 
   return (
-    <div className="flex-row">
-      {/* Navigation */}
-      <nav className="flex fixed w-screen h-16 bg-black">
-        <h1>{name}</h1>
-        <ul className="flex items-center justify-center text-white">
-          <li className="px-5">
-            <a href="/">Home</a>
-          </li>
-          <li className="px-5">
-            <a href="/login">Login</a>
-          </li>
-          <li className="px-5">
-            <a href="/register">Register</a>
-          </li>
-          <li className="px-5">
-            <a href="/polls/new">Create</a>
-          </li>
-          <li className="px-5">
-            <a href="/polls/manage">Manage</a>
-          </li>
-        </ul>
-      </nav>
-
-      {/* Main Content */}
-      <main className="pt-16">
+    <div className="flex h-screen justify-center items-center">
+      <main className="flex h-4/5 fixed p-4 mt-16  w-screen pt-16">
         {/* Filter Dropdown */}
+        <div className="fixed w-full">
         <select
           value={fil}
           onChange={(e) => setFil(e.target.value)}
-          className="p-4 bg-gray-100 dark:bg-gray-800"
+          className="p-4 ml-10 text-2xl font-extrabold text-black bg-transparent"
         >
           <option value="active">ACTIVE</option>
           <option value="closed">CLOSED</option>
           <option value="expired">EXPIRED</option>
         </select>
+        </div>
 
         {/* Poll List */}
-        <ul className="flex flex-wrap p-16 gap-4">
-          {data
+        <ul className="flex flex-wrap justify-center items-center w-full gap-4 p-20 text-xl">
+          {polls
             .filter((poll) => poll.status === fil)
             .map((post) => (
               <div
                 key={post.poll_id}
-                className="w-full max-w-sm p-4 bg-white border border-gray-200 rounded-lg shadow sm:p-6 md:p-8 dark:bg-gray-800 dark:border-gray-700"
+                className="w-full max-w-sm p-4  text-black bg-white border border-gray-950 rounded-lg shadow sm:p-6 md:p-8 transition duration-300 hover:bg-gray-300"
+                onClick={() => {
+                  redirect("/polls/"+post.poll_id)
+                }}  
               >
                 <ul>
-                  <li className="text-lg font-semibold">{post.title}</li>
+                  <li className="text-lg font-semibold">{post.poll_id}.<span className="text-3xl">{post.title}</span></li>
                   <li>{post.description}</li>
                   <li>Status: {post.status}</li>
                   <li>Created At: {post.created_at}</li>
@@ -89,9 +83,9 @@ export default function Home() {
 
                 {/* Options List */}
                 <ul className="mt-4 space-y-2">
-                  {post.options.map((option: any) => {
+                  {post.options.map((option: PollOption) => {
                     const totalVotes = post.options.reduce(
-                      (sum: number, opt: any) => sum + opt.votes,
+                      (sum: number, opt: PollOption) => sum + opt.votes,
                       0
                     );
                     const percentage =
@@ -101,7 +95,7 @@ export default function Home() {
 
                     return (
                       <li key={option.option_id}>
-                        <div className="mb-2 text-gray-900 dark:text-gray-200">
+                        <div className="mb-2">
                           {option.text} - Votes: {option.votes}
                         </div>
                         <div className="relative pt-1">
@@ -110,9 +104,9 @@ export default function Home() {
                               {Math.round(percentage)}%
                             </span>
                           </div>
-                          <div className="w-full h-2.5 bg-gray-200 rounded-full dark:bg-gray-700">
+                          <div className="w-full h-2.5 bg-gray-200 rounded-full">
                             <div
-                              className="h-full bg-green-500 rounded-full"
+                              className="h-full bg-black rounded-full"
                               style={{ width: `${percentage}%` }}
                             ></div>
                           </div>
@@ -120,6 +114,7 @@ export default function Home() {
                       </li>
                     );
                   })}
+                  <li>Created By: <span className="font-semibold">{post.creator}</span></li>
                 </ul>
               </div>
             ))}

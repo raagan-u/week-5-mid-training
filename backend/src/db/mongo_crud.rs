@@ -49,16 +49,22 @@ impl PollRepository for MongoPollRepo {
         match self.collection.find(None, None).await {
             Ok(polls) => {
                 let poll_vec = polls.try_collect().await?;
+                println!("{:?}", poll_vec);
+                println!("dgfgdg");
                 Ok(poll_vec)
             }
             Err(e) => {
+                println!("dgfghjfhgjfgmfgdg");
                 eprintln!("Error retrieving poll: {:?}", e);
                 Err(Box::new(e))
             }
         }
     }
 
-    async fn get_poll(&self, poll_id: i64) -> Result<Option<Poll>, Box<dyn std::error::Error>> {
+    async fn get_poll(
+        &self,
+        poll_id: i64,
+    ) -> Result<Option<Poll>, Box<dyn std::error::Error + Send + Sync>> {
         println!("Entered get_poll");
 
         let filter = doc! { "poll_id": poll_id };
@@ -82,7 +88,7 @@ impl PollRepository for MongoPollRepo {
         target: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let filter = doc! { "poll_id": poll_id };
-        let mut update = doc! {};
+        let update;
         if target == "reset" {
             update = doc! {
                   "$set": { "options.$[].votes": 0 }
@@ -107,10 +113,14 @@ impl PollRepository for MongoPollRepo {
         &self,
         poll_id: i64,
         option_id: i64,
+        username: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let filter = doc! { "poll_id": poll_id, "status": "active" };
         let update = doc! {
-            "$inc": { "options.$[elem].votes": 1 }
+            "$inc": { "options.$[elem].votes": 1 },
+            "$push": {
+                "users_voted": username
+            }
         };
         let array_filters = vec![doc! { "elem.option_id": option_id }];
 

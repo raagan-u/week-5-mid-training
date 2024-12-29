@@ -4,24 +4,25 @@ use actix_web::{
     web::{self, Data, JsonConfig},
     {get, App, HttpRequest, HttpResponse, HttpServer, Responder},
 };
-use db::init;
+use db::{init, init_user_db, user_crud::UserRepository};
 use dotenv::dotenv;
-use handler::middleware::auth_middleware::CheckAuth;
-use startup::startup;
+use handler::poll::poll_results;
+// use handler::middleware::auth_middleware::CheckAuth;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 mod db;
 mod handler;
 mod models;
-mod startup;
+
 use crate::db::{config::DbConfig, poll_crud::PollRepository};
 use crate::handler::{
     auth::{finish_authentication, finish_register, start_authentication, start_register},
     poll::{add_polls, cast_vote, close_poll, delete_poll, fetch_polls, reset_vote},
 };
 use crate::models::{auth_state::AuthenticationState, reg_state::RegistrationState};
-use actix_cors::Cors; // Import the CORS middlewar
+use actix_cors::Cors;
+use webauthn_rs::prelude::*; // Import the CORS middlewar
 
 #[get("/")]
 pub async fn root_handler(req: HttpRequest) -> impl Responder {
@@ -46,10 +47,14 @@ async fn main() -> std::io::Result<()> {
     // Initialize env-logger
     env_logger::init();
     dotenv().ok();
-    // Generate secret key for cookies.
-    // Normally you would read this from a configuration file.
 
-    let (webauthn, webauthn_users) = startup();
+    //webauthn setup
+    let rp_id = "localhost";
+    let rp_origin = Url::parse("http://localhost:3000").expect("Invalid URL");
+    let builder = WebauthnBuilder::new(rp_id, &rp_origin).expect("Invalid configuration");
+
+    let webauthn = Data::new(builder.build().expect("Invalid configuration"));
+
     let reg_state_storage = Data::new(RegistrationState::new());
     let auth_state_storeage = Data::new(AuthenticationState::new());
     let config = DbConfig::new(
@@ -59,18 +64,24 @@ async fn main() -> std::io::Result<()> {
         "rustest",
     );
 
-    let poll_repo = init(config).await;
+    let poll_repo = init(config.clone()).await;
+    let user_repo = init_user_db(config).await;
+
     let store_arc: Arc<dyn PollRepository> = Arc::new(poll_repo);
     let store_data: Data<dyn PollRepository> = Data::from(store_arc);
+
+    let user_store: Arc<dyn UserRepository> = Arc::new(user_repo);
+    let user_data: Data<dyn UserRepository> = Data::from(user_store);
+
     HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
             .app_data(store_data.clone())
+            .app_data(user_data.clone())
             .app_data(reg_state_storage.clone())
             .app_data(auth_state_storeage.clone())
             .app_data(JsonConfig::default())
             .app_data(webauthn.clone())
-            .app_data(webauthn_users.clone())
             .service(root_handler)
             .service(auth_handler)
             .service(
@@ -88,7 +99,8 @@ async fn main() -> std::io::Result<()> {
                     .service(delete_poll)
                     .service(cast_vote)
                     .service(close_poll)
-                    .service(reset_vote),
+                    .service(reset_vote)
+                    .service(poll_results),
             )
             .wrap(
                 Cors::default() // Configure CORS to allow all origins

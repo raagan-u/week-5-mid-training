@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct DbConfig {
     pub db_type: String,           // Type of the database
     pub connection_string: String, // Connection string to the database
