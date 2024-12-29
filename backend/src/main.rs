@@ -72,6 +72,7 @@ async fn main() -> std::io::Result<()> {
 
     let user_store: Arc<dyn UserRepository> = Arc::new(user_repo);
     let user_data: Data<dyn UserRepository> = Data::from(user_store);
+    let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
 
     HttpServer::new(move || {
         App::new()
@@ -110,7 +111,7 @@ async fn main() -> std::io::Result<()> {
                     .supports_credentials(), // Allows any header
             )
     })
-    .bind(("0.0.0.0", 8080))?
+    .bind(("0.0.0.0", port.parse::<u16>().unwrap()))?
     .run()
     .await
 }
