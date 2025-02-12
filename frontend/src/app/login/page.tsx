@@ -7,7 +7,7 @@ import useUserStore from "../../stores/useUserStore";
 import usePollStore from "../../stores/usePollStore";
 
 export default function Register() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const apiUrl = process.env.API_URL || '';
   const [name, setName] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -21,7 +21,7 @@ export default function Register() {
 
     try {
       // Step 1: Fetch authentication options from the server
-      const response = await fetch(`${apiUrl}/api/auth/start_auth/` + name, { method: 'POST' });
+      const response = await fetch("http://localhost:8080/api/auth/start_auth/" + name, { method: 'POST' });
       const respJSON = await response.json();
       const optionsJSON = respJSON.publicKey;
       console.log("OptionsJSON\n", optionsJSON);
@@ -31,7 +31,7 @@ export default function Register() {
       console.log("auth Response\n", authResponse);
 
       // Step 3: Send the authenticator response to the server for verification
-      const verificationResponse = await fetch(`${apiUrl}/api/auth/finish_auth/`+name, {
+      const verificationResponse = await fetch("0.0.0.0:8080/api/auth/finish_auth/"+name, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

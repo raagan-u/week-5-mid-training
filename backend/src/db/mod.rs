@@ -9,20 +9,20 @@ use config::DbConfig;
 use mongo_user_crud::MongoUserRepo;
 use user_crud::UserRepository;
 
-pub async fn init(config: DbConfig) -> impl PollRepository {
+pub async fn init(config: &DbConfig) -> impl PollRepository {
     match config.db_type.as_str() {
         "mongodb" => {
-            let repo = MongoPollRepo::new(&config).await; // Await the Future to get MongoPollRepo
+            let repo = MongoPollRepo::new(config).await; // Await the Future to get MongoPollRepo
             repo // Box the resulting MongoPollRepo
         }
         _ => panic!("Unsupported database type"),
     }
 }
 
-pub async fn init_user_db(config: DbConfig) -> impl UserRepository {
+pub async fn init_user_db(config: &DbConfig) -> impl UserRepository {
     match config.db_type.as_str() {
         "mongodb" => {
-            let repo = MongoUserRepo::new(&config).await;
+            let repo = MongoUserRepo::new(config).await;
             repo
         }
         _ => panic!("Unsupported database type"),

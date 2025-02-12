@@ -5,7 +5,7 @@ import { startRegistration } from '@simplewebauthn/browser';
 import { redirect } from "next/navigation";
 
 export default function Register() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    
     const [name, setName] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -18,7 +18,7 @@ export default function Register() {
 
         try {
             // Step 1: Get registration options from the server
-            const response = await fetch(`${apiUrl}/api/auth/start_reg/`+name, {
+            const response = await fetch("http://0.0.0.0:8080/api/auth/start_reg/"+name, {
                 method: "POST"
             });
             const jsonresp = await response.json();
@@ -29,7 +29,7 @@ export default function Register() {
 
             // Step 3: POST the response to the server for verification
             
-            const verificationResponse = await fetch(`${apiUrl}/api/auth/finish_reg`, {
+            const verificationResponse = await fetch("0.0.0.0:8080/api/auth/finish_reg", {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

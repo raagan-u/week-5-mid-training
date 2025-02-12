@@ -64,8 +64,8 @@ async fn main() -> std::io::Result<()> {
         "rustest",
     );
 
-    let poll_repo = init(config.clone()).await;
-    let user_repo = init_user_db(config).await;
+    let poll_repo = init(&config).await;
+    let user_repo = init_user_db(&config).await;
 
     let store_arc: Arc<dyn PollRepository> = Arc::new(poll_repo);
     let store_data: Data<dyn PollRepository> = Data::from(store_arc);
